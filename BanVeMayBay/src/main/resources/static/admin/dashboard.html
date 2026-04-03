@@ -57,13 +57,11 @@
         .box { background: var(--surface); padding: 25px; border-radius: 16px; flex: 1; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); position: relative; overflow: hidden; }
         .box::before { content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; }
         .box-revenue::before { background: #10b981; }
-        .box-trans::before { background: #3b82f6; }
         .box h4 { color: var(--text-muted); font-size: 13px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
         .box h1 { font-size: 32px; color: var(--text-main); font-weight: 800; }
 
         /* --- MODAL HIỆN ĐẠI --- */
         .modal { display: none; position: fixed; inset: 0; background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000; }
-        /* Tăng độ rộng modal chuyến bay lên 650px để nhập giá thoải mái */
         .modal-content { background: var(--surface); padding: 35px; border-radius: 16px; width: 650px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); animation: modalIn 0.3s ease-out; }
         @keyframes modalIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .form-group { margin-bottom: 18px; }
@@ -140,8 +138,10 @@
 
             <div id="section-reports" class="tab-content" style="display: none;">
                 <div class="summary-box">
-                    <div class="box box-revenue"><h4>Tổng Doanh Thu Thực Tế</h4><h1 id="total-revenue">0 đ</h1></div>
-                    <div class="box box-trans"><h4>Giao Dịch Thành Công</h4><h1 id="total-trans">0</h1></div>
+                    <div class="box box-revenue" style="max-width: 400px;">
+                        <h4>Tổng Doanh Thu Thực Tế</h4>
+                        <h1 id="total-revenue">0 đ</h1>
+                    </div>
                 </div>
                 <div class="card">
                     <h3 class="section-title">Lịch sử Biến động Số dư</h3>
@@ -221,7 +221,6 @@
     </div>
 
     <script>
-        // HÀM HELPER
         function renderBadge(status) {
             const map = {
                 'scheduled': { t: 'Đã lên lịch', c: 'badge-blue' },
@@ -237,7 +236,6 @@
             return `<span class="badge ${s.c}">${s.t}</span>`;
         }
 
-        // Định dạng tiền tệ VNĐ (Nếu = 0 hoặc null thì hiện dấu ---)
         const formatVND = (price) => {
             if (!price || price <= 0) return '<span style="color:#9ca3af">---</span>';
             return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
@@ -283,7 +281,6 @@
             document.getElementById('flightModal').style.display = 'flex'; 
             document.getElementById('flightId').value = ''; 
             
-            // Xóa rỗng các ô nhập giá khi tạo mới
             document.getElementById('f_priceEconomy').value = '';
             document.getElementById('f_pricePremium').value = '';
             document.getElementById('f_priceBusiness').value = '';
@@ -301,7 +298,6 @@
                 document.getElementById('f_departure').value = d.scheduledDeparture ? d.scheduledDeparture.substring(0,16) : '';
                 document.getElementById('f_arrival').value = d.scheduledArrival ? d.scheduledArrival.substring(0,16) : '';
                 
-                // (Tạm thời khi edit chưa tải lại giá cũ, bạn có thể để trống hoặc bỏ qua)
                 document.getElementById('f_priceEconomy').value = '';
                 document.getElementById('f_pricePremium').value = '';
                 document.getElementById('f_priceBusiness').value = '';
@@ -322,7 +318,6 @@
                 scheduledDeparture: document.getElementById('f_departure').value, 
                 scheduledArrival: document.getElementById('f_arrival').value,
                 
-                // ĐÃ CẬP NHẬT: Gửi thêm 4 thông số giá xuống Backend
                 priceEconomy: document.getElementById('f_priceEconomy').value,
                 pricePremium: document.getElementById('f_pricePremium').value,
                 priceBusiness: document.getElementById('f_priceBusiness').value,
@@ -415,11 +410,10 @@
         // --- BÁO CÁO TÀI CHÍNH ---
         function loadReports() {
             fetch('/api/reports/revenue').then(r => r.json()).then(data => {
-                let money = 0; let count = 0;
+                let money = 0; 
                 document.getElementById('report-table').innerHTML = data.map(r => {
                     const amt = Number(r.totalRevenue); 
                     money += amt;
-                    if(amt > 0) count++;
                     const isRefund = amt < 0;
                     return `<tr>
                         <td>${r.paymentDate}</td>
@@ -428,7 +422,6 @@
                     </tr>`;
                 }).join('');
                 document.getElementById('total-revenue').innerText = money.toLocaleString() + ' VNĐ';
-                document.getElementById('total-trans').innerText = count;
             });
         }
 
