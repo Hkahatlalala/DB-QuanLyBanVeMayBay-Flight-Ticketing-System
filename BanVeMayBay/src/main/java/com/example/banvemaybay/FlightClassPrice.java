@@ -3,17 +3,18 @@ package com.example.banvemaybay;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "flight_class_price")
+@Table(name = "class_price") // Đã cập nhật tên bảng
 public class FlightClassPrice {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "cprice_id") // Đã cập nhật tên cột khóa chính
     private Integer id;
 
     @Column(name = "flight_id")
     private Integer flightId;
 
-    @Column(name = "seat_class")
+    @Column(name = "class_name") // Đã cập nhật tên cột hạng ghế
     private String seatClass;
 
     private Integer price;

@@ -35,75 +35,15 @@ public class AdminController {
     @GetMapping("/admin/dashboard")
     public String showDashboard() { return "forward:/admin/dashboard.html"; }
 
-    // ==========================================
-    // ĐÃ SỬA: GỌI ĐÚNG HÀM CÓ KÈM BẢNG GIÁ TIỀN
-    // ==========================================
     @GetMapping("/api/flights")
     @ResponseBody 
     public List<Map<String, Object>> getAllFlights() { 
-        // Bắt buộc phải là findAllFlightInfoWithPrices() để có 4 cột giá
         return flightRepository.findAllFlightInfoWithPrices(); 
-    }
-
-    @GetMapping("/api/flights/detail/{id}")
-    @ResponseBody 
-    public Flight getFlightDetail(@PathVariable Integer id) { return flightRepository.findById(id).orElse(null); }
-
-    @PutMapping("/api/flights/{id}")
-    @ResponseBody 
-    public String updateFlight(@PathVariable Integer id, @RequestBody Flight details) {
-        Flight f = flightRepository.findById(id).orElse(null);
-        if(f != null) {
-            f.setStatus(details.getStatus());
-            f.setAirlineId(details.getAirlineId());
-            f.setAircraftId(details.getAircraftId());
-            f.setDepartsAirportId(details.getDepartsAirportId());
-            f.setArrivesAirportId(details.getArrivesAirportId());
-            f.setScheduledDeparture(details.getScheduledDeparture());
-            f.setScheduledArrival(details.getScheduledArrival());
-            flightRepository.save(f);
-            return "Cập nhật chuyến bay thành công!";
-        }
-        return "Lỗi: Không tìm thấy chuyến bay";
-    }
-
-    @DeleteMapping("/api/flights/{id}")
-    @ResponseBody 
-    public String deleteFlight(@PathVariable Integer id) {
-        flightRepository.deleteById(id);
-        return "Đã xóa chuyến bay.";
     }
 
     @GetMapping("/api/aircrafts")
     @ResponseBody 
     public List<Map<String, Object>> getAllAircrafts() { return aircraftRepository.findAllAircraftInfo(); }
-
-    @GetMapping("/api/aircrafts/detail/{id}")
-    @ResponseBody 
-    public Aircraft getAircraftDetail(@PathVariable Integer id) { return aircraftRepository.findById(id).orElse(null); }
-
-    @PutMapping("/api/aircrafts/{id}")
-    @ResponseBody 
-    public String updateAircraft(@PathVariable Integer id, @RequestBody Aircraft details) {
-        Aircraft a = aircraftRepository.findById(id).orElse(null);
-        if(a != null) {
-            a.setNumber(details.getNumber()); 
-            a.setModel(details.getModel());
-            a.setTotalSeats(details.getTotalSeats());
-            a.setAirlineId(details.getAirlineId());
-            a.setStatus(details.getStatus());
-            aircraftRepository.save(a);
-            return "Cập nhật tàu bay thành công!";
-        }
-        return "Lỗi";
-    }
-
-    @PostMapping("/api/aircrafts")
-    @ResponseBody 
-    public String addAircraft(@RequestBody Aircraft aircraft) {
-        aircraftRepository.save(aircraft);
-        return "Thêm mới thành công!";
-    }
 
     @GetMapping("/api/reservations")
     @ResponseBody 
@@ -124,9 +64,6 @@ public class AdminController {
                 reservationRepository.confirmPaymentSafe(id, time);
                 assignSeatsForReservation(id);
             }
-            else if ("cancelled".equals(st)) {
-                reservationRepository.refundPaymentSafe(id, time);
-            }
             return "OK";
         }
         return "Error";
@@ -135,7 +72,6 @@ public class AdminController {
     private void assignSeatsForReservation(Integer reservationId) {
         String getTicketsSql = "SELECT id, flight_id FROM ticket WHERE reservation_id = ? AND seat_no IS NULL";
         List<Map<String, Object>> tickets = jdbcTemplate.queryForList(getTicketsSql, reservationId);
-
         if (tickets.isEmpty()) return; 
 
         Integer flightId = (Integer) tickets.get(0).get("flight_id");
@@ -156,7 +92,6 @@ public class AdminController {
                     assignedSeat = potentialSeat;
                     takenSeats.add(assignedSeat); 
                 }
-
                 currentLetterIndex++;
                 if (currentLetterIndex >= seatLetters.length) {
                     currentLetterIndex = 0;
@@ -164,6 +99,19 @@ public class AdminController {
                 }
             }
             jdbcTemplate.update("UPDATE ticket SET seat_no = ? WHERE id = ?", assignedSeat, ticketId);
+        }
+    }
+
+    // --- API HOÀN TIỀN CHUẨN ---
+    @PostMapping("/api/reservations/{id}/refund")
+    @ResponseBody
+    public Map<String, Object> refundReservation(@PathVariable Integer id) {
+        try {
+            reservationRepository.cancelReservationStatus(id);
+            reservationRepository.insertRefundTransaction(id);
+            return Map.of("success", true, "message", "Hoàn tiền thành công");
+        } catch (Exception e) {
+            return Map.of("success", false, "message", "Lỗi: " + e.getMessage());
         }
     }
 

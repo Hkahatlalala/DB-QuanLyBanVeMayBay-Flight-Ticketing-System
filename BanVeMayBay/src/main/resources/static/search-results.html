@@ -75,20 +75,25 @@
         const seatClass = urlParams.get('class') || 'Economy'; 
         const adults = parseInt(urlParams.get('adults')) || 1;
         const children = parseInt(urlParams.get('children')) || 0;
-        
         const isRoundTrip = urlParams.has('returnDate');
         
         let currentStep = 1; 
         let selectedOutboundFlight = null; 
-        let outboundPrice = 0; // Biến lưu trữ tiền của chiều đi
+        let outboundPrice = 0; 
         let airportMap = {}; 
         let realFlightsData = []; 
 
+        // Tải danh sách sân bay để map ID thành Tên thành phố/Sân bay
         fetch('/api/airports')
             .then(res => res.json())
             .then(data => {
                 data.forEach(airport => {
-                    airportMap[airport.id] = { cityName: airport.locationText, airportName: airport.airportName }; 
+                    // Tách tên thành phố từ chuỗi "Hà Nội, Việt Nam"
+                    const cityOnly = airport.locationText ? airport.locationText.split(',')[0] : 'N/A';
+                    airportMap[airport.id] = { 
+                        cityName: cityOnly, 
+                        airportName: airport.airportName 
+                    }; 
                 });
                 updateHeader();
                 fetchFlightsFromDB();
@@ -105,7 +110,6 @@
             document.getElementById('displayArr').innerText = currentStep === 1 ? arrInfo.cityName : depInfo.cityName;
             
             const paxText = `${adults} Người lớn` + (children > 0 ? `, ${children} Trẻ em` : '');
-            
             const dateDisplay = date ? date : 'Tất cả các ngày';
 
             if(currentStep === 1) {
@@ -122,24 +126,18 @@
             fetch('/api/flights')
                 .then(res => res.json())
                 .then(flights => {
-                    const now = new Date(); // Lấy thời điểm hiện tại của hệ thống
-                    const depCity = airportMap[depId] ? airportMap[depId].cityName.split(',')[0].trim() : "";
-                    const arrCity = airportMap[arrId] ? airportMap[arrId].cityName.split(',')[0].trim() : "";
+                    // Lấy đúng tên sân bay từ Map để so sánh với DepartureLocation trong Backend
+                    const depAirportCompare = airportMap[depId] ? airportMap[depId].airportName : "";
+                    const arrAirportCompare = airportMap[arrId] ? airportMap[arrId].airportName : "";
 
                     let filtered = flights.filter(f => {
-                        // So sánh đúng Tuyến bay (Đảo ngược nếu đang chọn chuyến về)
                         const matchRoute = (currentStep === 1) 
-                            ? (f.departureLocation === depCity && f.arrivalLocation === arrCity)
-                            : (f.departureLocation === arrCity && f.arrivalLocation === depCity);
+                            ? (f.departureLocation === depAirportCompare && f.arrivalLocation === arrAirportCompare)
+                            : (f.departureLocation === arrAirportCompare && f.arrivalLocation === depAirportCompare);
                         
                         const safeDepString = String(f.scheduledDeparture).replace(' ', 'T');
                         const flightDateObj = new Date(safeDepString);
 
-                        // LỌC BỎ CHUYẾN BAY TRONG QUÁ KHỨ (Cực kỳ quan trọng)
-                        if (flightDateObj < now) {
-                            return false; 
-                        }
-                        
                         let matchDate = true; 
                         const targetDate = (currentStep === 1) ? date : (urlParams.get('returnDate') || '');
 
@@ -148,10 +146,8 @@
                             const mm = String(flightDateObj.getMonth() + 1).padStart(2, '0');
                             const dd = String(flightDateObj.getDate()).padStart(2, '0');
                             const fDate = `${yyyy}-${mm}-${dd}`; 
-
                             matchDate = (fDate === targetDate);
                         }
-
                         return matchRoute && matchDate;
                     });
 
@@ -159,7 +155,6 @@
                         const safeDepString = String(f.scheduledDeparture).replace(' ', 'T');
                         const depDateObj = new Date(safeDepString);
                         const depTimeString = depDateObj.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
-                        
                         const flightDateDisplay = depDateObj.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit', year: 'numeric'});
 
                         let arrTimeString = "N/A";
@@ -169,13 +164,15 @@
                             arrTimeString = arrDateObj.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
                         }
 
-                        const priceKey = "price" + seatClass; 
+                        // Lấy giá dựa trên Hạng ghế người dùng đã chọn
+                        const formattedClass = seatClass.charAt(0).toUpperCase() + seatClass.slice(1).toLowerCase();
+                        const priceKey = "price" + formattedClass; 
                         const basePrice = f[priceKey] || 0;
 
                         return {
                             id: f.flightId,
                             airline: f.airlineName,
-                            logo: f.airlineName.substring(0, 2).toUpperCase(), 
+                            logo: f.airlineName ? f.airlineName.substring(0, 2).toUpperCase() : 'FL', 
                             depTime: depTimeString,
                             arrTime: arrTimeString,
                             flightDate: flightDateDisplay, 
@@ -197,11 +194,13 @@
             filterBox.innerHTML = '<h3>Hãng hàng không</h3>';
             const uniqueAirlines = [...new Set(flightsData.map(flight => flight.airline))];
             uniqueAirlines.forEach(airline => {
-                filterBox.innerHTML += `
-                    <label class="filter-item">
-                        <input type="checkbox" value="${airline}" checked onchange="applyFilters()"> ${airline}
-                    </label>
-                `;
+                if(airline) {
+                    filterBox.innerHTML += `
+                        <label class="filter-item">
+                            <input type="checkbox" value="${airline}" checked onchange="applyFilters()"> ${airline}
+                        </label>
+                    `;
+                }
             });
         }
 
@@ -217,7 +216,7 @@
             container.innerHTML = ''; 
 
             if (flightsToRender.length === 0) {
-                container.innerHTML = '<div class="no-flights">Không tìm thấy chuyến bay nào phù hợp với bộ lọc (Hoặc chuyến bay đã cất cánh).</div>';
+                container.innerHTML = '<div class="no-flights">Không tìm thấy chuyến bay nào phù hợp với yêu cầu của bạn.</div>';
                 return;
             }
 
@@ -225,22 +224,19 @@
             const arrInfo = getAirportInfo(arrId);
 
             flightsToRender.forEach(flight => {
-                // Tiền hiển thị trên vé = Tiền 1 vé * Số người
-                const currentTotalPrice = flight.price * (adults + children);
-                
+                const unitPrice = flight.price;
                 let priceDisplay = '';
                 let btnDisplay = '';
 
-                if (flight.price > 0) {
-                    const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
-                    priceDisplay = `<div class="price">${formattedPrice}</div>`;
-                    btnDisplay = `<button class="btn-select" onclick="selectFlight(${flight.id}, ${currentTotalPrice})">Chọn chuyến bay</button>`;
+                if (unitPrice > 0) {
+                    const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(unitPrice);
+                    priceDisplay = `<div class="price">${formattedPrice} <span style="font-size: 14px; color: #6b7280; font-weight: 500;">/ khách</span></div>`;
+                    btnDisplay = `<button class="btn-select" onclick="selectFlight(${flight.id}, ${unitPrice})">Chọn chuyến bay</button>`;
                 } else {
-                    priceDisplay = `<div class="price" style="color:#9ca3af; font-size: 16px;">Chưa cập nhật giá</div>`;
+                    priceDisplay = `<div class="price" style="color:#9ca3af; font-size: 16px;">Hết vé hạng này</div>`;
                     btnDisplay = `<button class="btn-select" style="background:#d1d5db; cursor:not-allowed;" disabled>Không thể đặt</button>`;
                 }
 
-                // Nếu đang ở Bước 2 (Khứ hồi), đảo chiều sân bay hiển thị cho thẻ HTML
                 const displayDepName = currentStep === 1 ? depInfo.airportName : arrInfo.airportName;
                 const displayArrName = currentStep === 1 ? arrInfo.airportName : depInfo.airportName;
 
@@ -273,24 +269,20 @@
             });
         }
 
-        function selectFlight(flightId, currentTotalPrice) {
+        function selectFlight(flightId, unitPrice) {
             if (currentStep === 1 && isRoundTrip) {
-                // NẾU LÀ KHỨ HỒI BƯỚC 1: Lưu mã chuyến bay đi và TIỀN VÉ CHIỀU ĐI lại
                 selectedOutboundFlight = flightId;
-                outboundPrice = currentTotalPrice; 
-                
-                currentStep = 2; // Chuyển sang Bước 2 (Chọn chiều về)
+                outboundPrice = unitPrice; 
+                currentStep = 2; 
                 updateHeader();
                 window.scrollTo(0, 0); 
-                fetchFlightsFromDB(); // Gọi API lần 2 để tải danh sách chuyến về
+                fetchFlightsFromDB(); 
             } else {
-                // CHỐT TỔNG: Nếu khứ hồi thì Tổng = Đi + Về. Nếu 1 chiều thì Tổng = Tiền chuyến đi
                 const outFlight = selectedOutboundFlight || flightId;
                 const inFlight = isRoundTrip ? flightId : '';
-                const finalTotal = outboundPrice + currentTotalPrice; 
+                const totalUnitPrice = outboundPrice + unitPrice; 
 
-                // Gửi toàn bộ dữ liệu kèm TỔNG TIỀN CUỐI CÙNG sang trang Checkout
-                window.location.href = `/checkout?outbound=${outFlight}&inbound=${inFlight}&adults=${adults}&children=${children}&class=${seatClass}&totalPrice=${finalTotal}`;
+                window.location.href = `/checkout?outbound=${outFlight}&inbound=${inFlight}&adults=${adults}&children=${children}&class=${seatClass}&totalPrice=${totalUnitPrice}`;
             }
         }
     </script>

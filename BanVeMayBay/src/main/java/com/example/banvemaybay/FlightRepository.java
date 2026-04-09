@@ -2,46 +2,48 @@ package com.example.banvemaybay;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
 import java.util.List;
 import java.util.Map;
 
+@Repository
 public interface FlightRepository extends JpaRepository<Flight, Integer> {
-    
-    @Query(value = "SELECT f.id AS \"flightId\", al.name AS \"airlineName\", f.aircraft_id AS \"aircraftId\", " +
-                   "ac.model AS \"aircraftModel\", city_dep.name AS \"departureLocation\", city_arr.name AS \"arrivalLocation\", " +
-                   "f.scheduled_departure AS \"scheduledDeparture\", " +
-                   "f.scheduled_arrival AS \"scheduledArrival\", " + // ĐÃ THÊM GIỜ ĐẾN
-                   "f.status AS \"status\", " +
-                   "(ac.total_seats - (SELECT COUNT(*) FROM ticket t WHERE t.flight_id = f.id AND t.status != 'cancelled')) AS \"availableSeats\" " +
-                   "FROM flight f JOIN airline al ON f.airline_id = al.id JOIN airport ad ON f.departs_airport_id = ad.id " +
-                   "JOIN city city_dep ON ad.city_id = city_dep.id JOIN airport aa ON f.arrives_airport_id = aa.id " +
-                   "JOIN city city_arr ON aa.city_id = city_arr.id JOIN aircraft ac ON f.aircraft_id = ac.id", nativeQuery = true)
-    List<Map<String, Object>> findAllFlightInfo();
 
-    @Query(value = "SELECT f.id AS \"flightId\", al.name AS \"airlineName\", f.aircraft_id AS \"aircraftId\", " +
-                   "ac.model AS \"aircraftModel\", city_dep.name AS \"departureLocation\", city_arr.name AS \"arrivalLocation\", " +
-                   "f.scheduled_departure AS \"scheduledDeparture\", " +
-                   "f.scheduled_arrival AS \"scheduledArrival\", " + // ĐÃ THÊM GIỜ ĐẾN
-                   "f.status AS \"status\", " +
-                   "MAX(CASE WHEN p.seat_class = 'Economy' THEN p.price ELSE 0 END) AS \"priceEconomy\", " +
-                   "MAX(CASE WHEN p.seat_class = 'Premium' THEN p.price ELSE 0 END) AS \"pricePremium\", " +
-                   "MAX(CASE WHEN p.seat_class = 'Business' THEN p.price ELSE 0 END) AS \"priceBusiness\", " +
-                   "MAX(CASE WHEN p.seat_class = 'First' THEN p.price ELSE 0 END) AS \"priceFirst\" " +
-                   "FROM flight f " +
-                   "JOIN airline al ON f.airline_id = al.id " +
-                   "JOIN airport ad ON f.departs_airport_id = ad.id " +
-                   "JOIN city city_dep ON ad.city_id = city_dep.id " +
-                   "JOIN airport aa ON f.arrives_airport_id = aa.id " +
-                   "JOIN city city_arr ON aa.city_id = city_arr.id " +
-                   "JOIN aircraft ac ON f.aircraft_id = ac.id " +
-                   "LEFT JOIN flight_class_price p ON f.id = p.flight_id " +
-                   "GROUP BY f.id", nativeQuery = true)
+    @Query(value = 
+        "SELECT " +
+            "f.id AS flightId, " +
+            "f.scheduled_departure AS scheduledDeparture, " +
+            "f.scheduled_arrival AS scheduledArrival, " +
+            "f.status AS status, " +
+            "al.name AS airlineName, " +
+            "ac.model AS aircraftModel, " +  
+            "dep.name AS departureLocation, " + 
+            "arr.name AS arrivalLocation, " +   
+            "MAX(CASE WHEN cp.class_name = 'Economy' THEN cp.price END) AS priceEconomy, " +
+            "MAX(CASE WHEN cp.class_name = 'Premium' THEN cp.price END) AS pricePremium, " +
+            "MAX(CASE WHEN cp.class_name = 'Business' THEN cp.price END) AS priceBusiness, " +
+            "MAX(CASE WHEN cp.class_name = 'First' THEN cp.price END) AS priceFirst " + 
+        "FROM flight f " +
+        "LEFT JOIN airline al ON f.airline_id = al.id " +
+        "LEFT JOIN aircraft ac ON f.aircraft_id = ac.id " + 
+        "LEFT JOIN airport dep ON f.departs_airport_id = dep.id " +
+        "LEFT JOIN airport arr ON f.arrives_airport_id = arr.id " +
+        "LEFT JOIN class_price cp ON f.id = cp.flight_id " + 
+        "GROUP BY f.id, f.scheduled_departure, f.scheduled_arrival, f.status, al.name, ac.model, dep.name, arr.name", 
+        nativeQuery = true)
     List<Map<String, Object>> findAllFlightInfoWithPrices();
 
-    @Query(value = "SELECT DATE_FORMAT(payment_time, '%d/%m/%Y %H:%i:%s') AS \"paymentDate\", " +
-                   "CASE WHEN status = 2 THEN -amount ELSE amount END AS \"totalRevenue\", " +
-                   "reservation_id AS \"reservationId\", " +
-                   "status AS \"status\" " + 
-                   "FROM payment WHERE status IN (1, 2) ORDER BY payment_time DESC", nativeQuery = true)
+    // ĐÃ FIX: Dùng CAST() để ép MySQL trả về Text, không bị ép thành Boolean nữa
+    @Query(value = 
+        "SELECT " +
+            "p.payment_time AS \"paymentDate\", " +
+            "p.reservation_id AS \"reservationId\", " +
+            "p.amount AS \"totalRevenue\", " +
+            "CAST(p.status AS CHAR) AS \"paymentStatus\" " + 
+        "FROM payment p " +
+        "WHERE p.status IN (1, 2) " + 
+        "ORDER BY p.payment_time DESC", 
+        nativeQuery = true)
     List<Map<String, Object>> getDailyRevenue();
 }

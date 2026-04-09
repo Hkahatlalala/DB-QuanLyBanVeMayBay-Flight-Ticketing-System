@@ -5,9 +5,9 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Map;
 
-public interface TicketRepository extends JpaRepository<Reservation, Integer> {
+// SỬA TẠI ĐÂY: Phải là Ticket (Entity quản lý vé), không phải Reservation
+public interface TicketRepository extends JpaRepository<Ticket, Integer> { 
     
-    // Đã thêm điều kiện WHERE r.status = 'confirmed' để chỉ lấy khách đã duyệt
     @Query(value = "SELECT t.id AS \"ticketId\", " +
                    "p.passport_no AS \"passportNumber\", " +
                    "p.name AS \"name\", " +
@@ -20,7 +20,7 @@ public interface TicketRepository extends JpaRepository<Reservation, Integer> {
                    "t.flight_id AS \"flightId\", " +
                    "t.reservation_id AS \"reservationId\" " +
                    "FROM ticket t " +
-                   "JOIN passenger p ON t.passenger_id = p.id " +
+                   "JOIN passenger p ON t.passenger_id = p.id " + // Map p.id
                    "JOIN reservation r ON t.reservation_id = r.id " +
                    "WHERE r.status = 'confirmed' " +
                    "ORDER BY t.flight_id, t.seat_no", nativeQuery = true)
